@@ -1,0 +1,77 @@
+---
+title: "Prediction Assignment"
+author: "Youngkeun Yoon"
+date: "2018-6-24"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+##Overview
+This project is to predict behavioral classes of individuals based on the data collected from their wearable devices. Although many features were introduced in the original data, I had to remove some of them since there were no valuable information in them. Also, I conducted imputation for NAs in the remaining variables. Then, I utilized the Caret package to create Random Forest, LDA, KNN models with cross validation. Finally, I validated those models and selected Random Forest based on confusion matrix results. 
+
+##Data Loading & Preprocessing
+##### Below codes are for downloading and loading the csv file on R.
+```{r}
+url_traindata="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-training.csv"
+url_testdata="https://d396qusza40orc.cloudfront.net/predmachlearn/pml-testing.csv"
+download.file(url_traindata,destfile="training_data.csv")
+download.file(url_testdata,destfile="testing_data.csv")
+data <- read.csv("training_data.csv")
+```
+
+##### I set the seed for reproducibility. Also, I loaded all the packages  that I will use.
+```{r}
+set.seed(123)
+library(caret)
+library(nnet)
+library(DMwR)
+```
+
+##### First, I found that there are multiple variables which contain mostly NAs. So I excluded those variables. Second, I discovered that first 6 variables is irrelevant to behaviors of individuals so I also excluded them. Third, I found that some variables contained NAs. However, these NAs may get in the way when I start modelling so I imputed them. Finally, I split the data to training data and validation data so that I can choose the best model before actual application to test data. 
+```{r}
+data2 <- data
+removevarind <-nearZeroVar(data2)
+data2 <- data2[, -removevarind]
+data2 <- data2[, -(1:6)]
+data2 <- centralImputation(data2)
+idx <- createDataPartition(data2$roll_belt, p=.8)
+traindata<- data2[idx$Resample1, ]
+validationdata <- data2[-idx$Resample1, ]
+```
+
+##Modelling
+#####I used caret package to conduct cross validation for each Random Forest, LDA and KNN methods. 
+```{r}
+rfmodel <- train(classe~., data=traindata, method='rf', trControl=trainControl(method="CV", number=3))
+ldamodel <- train(classe~., data=traindata, method="lda2", trControl=trainControl(method="CV", number=3))
+knnmodel <- train(classe~., data=traindata, method="kknn", trControl=trainControl(method="CV", number=3))
+plot(rfmodel)
+plot(ldamodel)
+plot(knnmodel)
+```
+
+##Selecting Best Model
+#####I applied each models to the validation data and checked confusion matrix
+###Random Forest
+##### Random Forest model had the highest accuracy so I determined that it is the best model.
+```{r}
+rfvalid <- predict(rfmodel, validationdata)
+rfcfmatrix <- confusionMatrix(validationdata$classe, rfvalid)
+rfcfmatrix
+```
+###LDA
+##### LDA model had low accuracy so I discarded it. 
+```{r}
+ldavalid <- predict(ldamodel, validationdata)
+ldacfmatrix <- confusionMatrix(validationdata$classe, ldavalid)
+ldacfmatrix
+```
+###KNN
+##### Although KNN model had high accuracy, Random Forest model showed better performance. 
+```{r}
+knnvalid <- predict(knnmodel, validationdata)
+knncfmatrix <- confusionMatrix(validationdata$classe, knnvalid)
+knncfmatrix
+```
